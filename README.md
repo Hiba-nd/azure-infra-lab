@@ -4,6 +4,8 @@ Linux monitoring tools with an isolated Ubuntu test environment. The health chec
 reports CPU, memory, filesystem usage, and optional process presence with configurable
 thresholds and explicit failure statuses. A periodic runner adds bounded check
 execution and shutdown cleanup. Neither command changes host configuration.
+The directory backup command creates private, versioned archives with checksum
+verification and publishes them only after verification succeeds.
 
 ## Run
 
@@ -38,6 +40,8 @@ The prerequisite checker returns 0 on success, 1 on a failed check, and 2 for
 invalid arguments. Diagnostics go to stderr. Each command supports `--help`.
 See [monitoring behavior and limitations](docs/monitoring.md) for measurement
 semantics, options, and test coverage.
+See [directory backups](docs/backups.md) for creation, verification, restore, and
+consistency limits.
 
 ## Limits
 

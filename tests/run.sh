@@ -111,3 +111,4 @@ fi
 printf '\n%d checks passed\n' "$passed"
 "$BASH" "$repo_root/tests/test-health.sh"
 "$BASH" "$repo_root/tests/test-monitor-loop.sh"
+"$BASH" "$repo_root/tests/test-backup.sh"

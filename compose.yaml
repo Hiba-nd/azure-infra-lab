@@ -1,0 +1,31 @@
+name: azure-infra-lab
+
+services:
+  lab:
+    image: ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
+    pull_policy: never
+    user: "1000:1000"
+    working_dir: /lab
+    command: ["bash", "scripts/check-environment.sh"]
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 64
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    volumes:
+      - type: bind
+        source: ./scripts
+        target: /lab/scripts
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./tests
+        target: /lab/tests
+        read_only: true
+        bind:
+          create_host_path: false

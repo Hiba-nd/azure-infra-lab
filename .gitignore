@@ -1,0 +1,38 @@
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+.azure/
+.ssh/
+*.pem
+*.key
+*.pfx
+*.p12
+id_rsa
+id_ed25519
+
+# Terraform working files, state, plans, and private variable values
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan
+tfplan
+terraform.tfvars
+terraform.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+crash.log
+crash.*.log
+
+# Generated lab output
+/artifacts/
+/backups/
+*.log
+*.tmp
+
+# Local editor and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -2,7 +2,8 @@
 
 Linux monitoring tools with an isolated Ubuntu test environment. The health checker
 reports CPU, memory, filesystem usage, and optional process presence with configurable
-thresholds and explicit failure statuses. It does not change host configuration.
+thresholds and explicit failure statuses. A periodic runner adds bounded check
+execution and shutdown cleanup. Neither command changes host configuration.
 
 ## Run
 
@@ -11,6 +12,7 @@ On Linux:
 ```bash
 bash scripts/check-environment.sh
 bash scripts/health-check.sh --disk /var --process nginx
+bash scripts/monitor-loop.sh --count 3 --delay 5 -- --disk /var
 bash tests/run.sh
 ```
 

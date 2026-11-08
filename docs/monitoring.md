@@ -36,6 +36,36 @@ are normal monitoring results, not collection errors. `--help` exits 0 without
 collecting data. The separate prerequisite checker uses its own documented 0/1/2
 exit convention.
 
+## Periodic sampling
+
+`scripts/monitor-loop.sh` runs checks serially and publishes complete reports:
+
+```bash
+bash scripts/monitor-loop.sh --count 3 --delay 5 --timeout 10 -- --disk /var
+```
+
+Options after `--` are passed unchanged to the health checker. Defaults are an
+unlimited sample count (`--count 0`), a 30-second delay, and a 10-second deadline
+per check. The delay starts after a check finishes, so this is not a fixed
+wall-clock schedule. Count accepts 0..999999, delay 0.1..3600 seconds, and timeout
+an integer from 1 to 300 seconds. Choose a deadline that allows the CPU sampling
+interval and filesystem query to finish.
+
+Each report starts with `sample` and `sample_timestamp_utc` and ends with a blank
+line. The runner buffers one report in a private temporary directory before
+publishing it. A timeout, unexpected exit code, or disagreement between the
+collector report and exit code produces UNKNOWN; partial results are discarded.
+The timeout has a one-second forced-termination grace period.
+
+The runner continues after warning, critical, and unknown results. A finite run
+returns its worst observed status, even if a later check recovers. SIGINT/SIGTERM
+stop its current check or delay, wait for the child, and remove temporary reports;
+the runner exits 130/143 respectively. It does not restart services or modify
+configuration. Separate invocations are independent; there is no global lock.
+
+Stdout/stderr can be captured by a caller or service manager. No persistent log
+store, rotation, external alert delivery, or service installation is provided.
+
 ## Measurement semantics
 
 - CPU: compare the first eight aggregate `/proc/stat` counters across the sampling
@@ -71,6 +101,10 @@ Tests use synthetic counter/memory/process files for deterministic calculations
 and failure cases, then collect real Linux data through the CLI. Synthetic inputs
 are confined to tests; the CLI always reads live `/proc` data. A live test accepts
 OK, WARNING, or CRITICAL as long as the report and exit status agree.
+Sampler tests include a controlled CRITICAL-to-OK collector sequence, rejection
+of inconsistent reports, a real check timeout, and SIGTERM during both a sampling
+wait and the delay between samples. They verify descendant processes exit and
+temporary reports are removed.
 
 In Docker, CPU and memory can describe Docker's host kernel while process visibility
 and filesystem mounts are container-specific. These metrics do not account for

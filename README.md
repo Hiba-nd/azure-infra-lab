@@ -1,8 +1,8 @@
 # azure-infra-lab
 
-Linux operations tools with an isolated Ubuntu test environment. The current
-prerequisite checker verifies Bash, required utilities, readable `/proc` data,
-and temporary-file access. It does not change host configuration.
+Linux monitoring tools with an isolated Ubuntu test environment. The health checker
+reports CPU, memory, filesystem usage, and optional process presence with configurable
+thresholds and explicit failure statuses. It does not change host configuration.
 
 ## Run
 
@@ -10,6 +10,7 @@ On Linux:
 
 ```bash
 bash scripts/check-environment.sh
+bash scripts/health-check.sh --disk /var --process nginx
 bash tests/run.sh
 ```
 
@@ -18,7 +19,7 @@ newer, and the image pinned in `compose.yaml`:
 
 ```text
 docker compose config --quiet
-docker compose run --rm --no-deps lab
+docker compose run --rm --no-deps lab bash scripts/health-check.sh --disk /tmp
 docker compose run --rm --no-deps lab bash tests/run.sh --lab
 ```
 
@@ -30,8 +31,11 @@ no network, no Linux capabilities, and a writable temporary filesystem. Each
 container is removed after the command finishes. Tests cover successful checks,
 error exits, cleanup, and these runtime restrictions.
 
+The health checker returns 0 (OK), 1 (WARNING), 2 (CRITICAL), or 3 (UNKNOWN).
 The prerequisite checker returns 0 on success, 1 on a failed check, and 2 for
-invalid arguments. Diagnostics go to stderr. `--help` describes its invocation.
+invalid arguments. Diagnostics go to stderr. Each command supports `--help`.
+See [monitoring behavior and limitations](docs/monitoring.md) for measurement
+semantics, options, and test coverage.
 
 ## Limits
 

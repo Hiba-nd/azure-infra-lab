@@ -31,7 +31,7 @@ run_check() {
     "$BASH" "$check_script" "$@" > "$test_dir/stdout" 2> "$test_dir/stderr" || status=$?
 }
 
-for script in "$repo_root"/scripts/*.sh "$repo_root"/tests/*.sh; do
+for script in "$repo_root"/scripts/*.sh "$repo_root"/scripts/lib/*.sh "$repo_root"/tests/*.sh; do
     "$BASH" -n "$script" || fail "Bash syntax: $script"
 done
 pass 'Bash syntax'
@@ -109,3 +109,4 @@ if [[ ${1:-} == --lab ]]; then
 fi
 
 printf '\n%d checks passed\n' "$passed"
+"$BASH" "$repo_root/tests/test-health.sh"

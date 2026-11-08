@@ -26,6 +26,26 @@ expect_code() {
     pass "exit $expected: $*"
 }
 
+child_named() {
+    local parent=$1 expected=$2 status_file key value name ppid pid_path
+    for status_file in /proc/[0-9]*/status; do
+        name='' ppid=''
+        while read -r key value _; do
+            case $key in
+                Name:) name=$value ;;
+                PPid:) ppid=$value ;;
+            esac
+            if [[ -n $name && -n $ppid ]]; then break; fi
+        done 2>/dev/null < "$status_file" || continue
+        if [[ $name == "$expected" && $ppid == "$parent" ]]; then
+            pid_path=${status_file%/status}
+            printf '%s\n' "${pid_path##*/}"
+            return 0
+        fi
+    done
+    return 1
+}
+
 PATH=/nonexistent expect_code 0 "${runner[@]}" --help
 PATH=/nonexistent expect_code 3 "${runner[@]}" --count 1
 expect_code 3 "${runner[@]}" --unknown
@@ -73,22 +93,34 @@ grep -qx 'status=UNKNOWN' "$test_dir/stdout" || fail 'inconsistent report was no
 pass 'inconsistent collector exit code and report produce UNKNOWN'
 unset -f timeout
 
-TMPDIR="$test_dir/private" "${runner[@]}" --delay 60 -- --interval 0.1 --process bash > "$test_dir/stdout" 2> "$test_dir/stderr" &
+# Keep a valid collection slower than the old five-second readiness budget.
+MONITOR_TEST_SLEEP_BIN=$(type -P sleep)
+export MONITOR_TEST_SLEEP_BIN
+sleep() {
+    if [[ $1 == 0.1 ]]; then
+        "$MONITOR_TEST_SLEEP_BIN" 6
+    else
+        exec "$MONITOR_TEST_SLEEP_BIN" "$@"
+    fi
+}
+export -f sleep
+TMPDIR="$test_dir/private" "${runner[@]}" --timeout 10 --delay 60 -- --interval 0.1 --process bash > "$test_dir/stdout" 2> "$test_dir/stderr" &
 watch_pid=$!
+unset -f sleep
 sleep_pid=''
-for attempt in {1..100}; do
-    if grep -q '^sample=1$' "$test_dir/stdout" && [[ -r /proc/$watch_pid/task/$watch_pid/children ]]; then
-        child_pids=''
-        IFS= read -r child_pids < "/proc/$watch_pid/task/$watch_pid/children" || true
-        for child in $child_pids; do
-            comm=''
-            IFS= read -r comm 2>/dev/null < "/proc/$child/comm" || true
-            if [[ $comm == sleep ]]; then sleep_pid=$child; break 2; fi
-        done
+readiness_deadline=$((SECONDS + 15))
+while (( SECONDS < readiness_deadline )); do
+    kill -0 "$watch_pid" 2>/dev/null || fail 'runner exited before the delay between samples'
+    if grep -q '^sample=1$' "$test_dir/stdout"; then
+        sleep_pid=$(child_named "$watch_pid" sleep) || sleep_pid=''
+        if [[ -n $sleep_pid ]]; then break; fi
     fi
     sleep 0.05
 done
 [[ -n $sleep_pid ]] || fail 'runner did not reach the delay between samples'
+grep -qx 'process_state=present' "$test_dir/stdout" || fail 'slow collection did not finish its report'
+kill -0 "$sleep_pid" 2>/dev/null || fail 'delay child exited before SIGTERM'
+pass 'a valid collection longer than five seconds reaches a live delay child'
 kill -TERM -- "$watch_pid"
 status=0
 wait "$watch_pid" || status=$?
@@ -99,22 +131,12 @@ pass 'SIGTERM stops the runner and its active delay child'
 [[ -z $(find "$test_dir/private" -mindepth 1 -print -quit) ]] || fail 'temporary report leaked on SIGTERM'
 pass 'temporary reports cleaned on SIGTERM'
 
-child_named() {
-    local parent=$1 expected=$2 children='' child comm
-    [[ -r /proc/$parent/task/$parent/children ]] || return 1
-    IFS= read -r children < "/proc/$parent/task/$parent/children" || true
-    for child in $children; do
-        comm=''
-        IFS= read -r comm 2>/dev/null < "/proc/$child/comm" || true
-        if [[ $comm == "$expected" ]]; then printf '%s\n' "$child"; return 0; fi
-    done
-    return 1
-}
-
 TMPDIR="$test_dir/private" "${runner[@]}" --timeout 300 -- --interval 60 > "$test_dir/stdout" 2> "$test_dir/stderr" &
 watch_pid=$!
 collector_sleep=''
-for attempt in {1..100}; do
+readiness_deadline=$((SECONDS + 15))
+while (( SECONDS < readiness_deadline )); do
+    kill -0 "$watch_pid" 2>/dev/null || fail 'runner exited before the sampling wait'
     timeout_pid=$(child_named "$watch_pid" timeout) || timeout_pid=''
     if [[ -n $timeout_pid ]]; then
         collector_pid=$(child_named "$timeout_pid" bash) || collector_pid=''

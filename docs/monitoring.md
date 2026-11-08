@@ -105,6 +105,12 @@ Sampler tests include a controlled CRITICAL-to-OK collector sequence, rejection
 of inconsistent reports, a real check timeout, and SIGTERM during both a sampling
 wait and the delay between samples. They verify descendant processes exit and
 temporary reports are removed.
+The delay-shutdown test deliberately slows a valid collection to six seconds.
+Its readiness budget exceeds the runner's ten-second check deadline and grace
+period; it still requires a completed report, a live direct sleep child, exit 143,
+child termination, and temporary-file cleanup. Child discovery matches `Name` and
+`PPid` in `/proc/PID/status`, avoiding the optional, race-prone
+[`children` interface](https://man7.org/linux/man-pages/man5/proc_tid_children.5.html).
 
 In Docker, CPU and memory can describe Docker's host kernel while process visibility
 and filesystem mounts are container-specific. These metrics do not account for

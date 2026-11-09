@@ -43,6 +43,13 @@ semantics, options, and test coverage.
 See [directory backups](docs/backups.md) for creation, verification, restore, and
 consistency limits.
 
+## Continuous integration
+
+The Linux CI workflow validates Compose and runs the same lab tests on pushes to
+`main` and pull requests targeting it. The Ubuntu runner pulls the image pinned
+in `compose.yaml`. The checkout uses a read-only repository token and clears its
+credentials before the test steps.
+
 ## Limits
 
 Git Bash on Windows is not Linux. The container shares Docker's Linux kernel;

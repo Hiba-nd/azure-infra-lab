@@ -1,6 +1,6 @@
 # Directory backups
 
-`scripts/backup-directory.sh` creates and verifies gzip-compressed tar backups of
+`scripts/backup-directory.sh` creates, verifies, and restores gzip-compressed tar backups of
 regular files, directories, and symlinks. It requires Linux, Bash, GNU tar, gzip,
 GNU coreutils, and find. It runs with the current user's permissions.
 
@@ -11,12 +11,11 @@ bash scripts/backup-directory.sh verify /path/to/backup-root/backup-TIMESTAMP-SU
 ```
 
 `create` prints one `backup_dir=ABSOLUTE_PATH` record on success. `verify` prints
-`status=ok`. Both return 0 on success, 1 on an operation or verification failure,
-and 2 for an invalid invocation. Diagnostics go to stderr; failures do not print a
-success record. The backup root must already exist, be owned by the current user,
-and have no group/other write permission. Its canonical path must be outside the
-source tree. Use a trusted backup root outside the checkout or under ignored
-`backups/` storage.
+`status=ok`. Commands return 0 on success, 1 on an operation or verification failure,
+and 2 for an invalid invocation. Diagnostics go to stderr. Use an existing backup
+root owned by the current user with group and other writes disabled. Its canonical
+path must be outside the source tree. Use a trusted backup root outside the checkout
+or under ignored `backups/` storage.
 
 Each backup is a directory containing:
 
@@ -45,18 +44,25 @@ operation follows [rename semantics](https://man7.org/linux/man-pages/man2/renam
 
 ## Restore and scope
 
-Restore is an explicit GNU tar operation into a new empty directory. For a trusted,
-successfully verified backup:
+Use `restore` with a trusted backup and a new destination under a directory you
+own. The destination parent must be writable by your user and protected against
+group and other writes.
 
 ```bash
-mkdir -m 700 /path/to/new-restore
-tar --extract --gzip --file /path/to/backup/archive.tar.gz --directory /path/to/new-restore
+bash scripts/backup-directory.sh restore /path/to/backup /path/to/new-restore
 ```
 
-The test suite performs this round trip and compares text, binary and hidden file
-contents. It checks empty directories, symlinks, private permissions, unique backup
-names, checksum corruption, malformed archives, unsafe paths, special files, and
-cleanup after a real unreadable-file failure.
+Restore verifies a private copy of the archive, extracts it using the current
+user and a private umask, and publishes the directory with a same-filesystem
+rename. It prints `restore_dir=ABSOLUTE_PATH` on success. Choose an unused path.
+If another process creates the destination during extraction, restore preserves it
+and discards staging. Allow space for both the compressed copy and restored files.
+
+The tests compare restored text and binary contents, hidden files, empty
+directories, and symlinks. They also exercise corrupt archives, destination
+collisions, and a simulated extraction failure after partial data was written.
+Creation tests cover private permissions, unsafe paths, special files, and
+cleanup after an unreadable-file failure.
 Run the permission tests as a regular user; the Compose lab already does this.
 
 The source should be quiescent while copying. Tar detecting some concurrent

@@ -8,9 +8,12 @@ usage() {
     printf '%s\n' 'Usage:
   bash scripts/backup-directory.sh create SOURCE BACKUP_ROOT
   bash scripts/backup-directory.sh verify BACKUP_DIRECTORY
+  bash scripts/backup-directory.sh restore BACKUP_DIRECTORY DESTINATION
   bash scripts/backup-directory.sh --help
 SOURCE and BACKUP_ROOT must be existing directories. BACKUP_ROOT must be outside
 SOURCE, owned by the current user, and not writable by group or others.
+Restore expects a trusted backup and a new destination under an existing parent
+directory owned by the current user and not writable by group or others.
 Exit codes: 0 success, 1 operation/verification failure, 2 invalid invocation.'
 }
 
@@ -24,6 +27,7 @@ shift
 case $operation in
     create) (( $# == 2 )) || invalid 'create requires SOURCE and BACKUP_ROOT' ;;
     verify) (( $# == 1 )) || invalid 'verify requires BACKUP_DIRECTORY' ;;
+    restore) (( $# == 2 )) || invalid 'restore requires BACKUP_DIRECTORY and DESTINATION' ;;
     *) invalid "unknown subcommand: $operation" ;;
 esac
 for path in "$@"; do
@@ -44,13 +48,18 @@ check_directory() {
     (( (8#$mode & 0022) == 0 )) || die 'backup directory must not be writable by group or others'
 }
 
-verify_backup() {
-    local directory=$1 record expected actual file
-    local pattern='^([0-9a-f]{64})  archive[.]tar[.]gz$'
+check_backup_files() {
+    local directory=$1 file
     check_directory "$directory"
     for file in archive.tar.gz archive.sha256; do
         [[ -f $directory/$file && ! -L $directory/$file ]] || die 'backup requires regular archive.tar.gz and archive.sha256 files'
     done
+}
+
+verify_backup() {
+    local directory=$1 record expected actual
+    local pattern='^([0-9a-f]{64})  archive[.]tar[.]gz$'
+    check_backup_files "$directory"
     record=$(< "$directory/archive.sha256")
     [[ $record =~ $pattern ]] || die 'checksum must name only archive.tar.gz with one SHA-256 digest'
     expected=${BASH_REMATCH[1]}
@@ -58,6 +67,48 @@ verify_backup() {
     [[ ${actual%% *} == "$expected" ]] || die 'backup checksum mismatch'
     tar --list --gzip --file "$directory/archive.tar.gz" >/dev/null || die 'backup is not a readable gzip tar archive'
 }
+
+restore_backup() (
+    for tool in basename dirname cp mkdir chmod; do
+        command -v "$tool" >/dev/null 2>&1 || die "required command not found: $tool"
+    done
+    IFS= read -r -d '' backup_directory < <(realpath --zero --canonicalize-existing -- "$1") \
+        || die 'backup directory does not exist'
+    destination_name=$(basename -- "$2")
+    case $destination_name in
+        /|.|..) invalid 'restore requires a new directory name' ;;
+    esac
+    IFS= read -r -d '' destination_parent < <(realpath --zero --canonicalize-existing -- "$(dirname -- "$2")") \
+        || die 'restore destination parent does not exist'
+    check_directory "$destination_parent"
+    destination="${destination_parent%/}/$destination_name"
+    [[ $destination != *$'\n'* && $destination != *$'\r'* ]] || invalid 'destination path must contain no line breaks'
+    [[ ! -e $destination && ! -L $destination ]] || die 'restore destination already exists'
+    check_backup_files "$backup_directory"
+
+    staging=$(mktemp -d -- "$destination_parent/.restore.XXXXXXXX") || die 'cannot create restore staging directory'
+    trap 'chmod -R u+rwx -- "$staging" || true; rm -rf -- "$staging"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    cp --no-dereference -- "$backup_directory/archive.tar.gz" "$backup_directory/archive.sha256" "$staging/" \
+        || die 'cannot copy backup files into restore staging'
+    verify_backup "$staging"
+    mkdir -- "$staging/data" || die 'cannot create restore data directory'
+    tar --extract --gzip --no-same-owner --no-same-permissions \
+        --file "$staging/archive.tar.gz" --directory "$staging/data" \
+        || die 'archive extraction failed'
+    [[ -d $staging/data && ! -L $staging/data ]] || die 'restore output must be a directory'
+    if ! mv --no-clobber --no-target-directory -- "$staging/data" "$destination" || [[ -e $staging/data ]]; then
+        [[ ! -e $destination && ! -L $destination ]] || die 'restore destination appeared during extraction'
+        die 'cannot publish restore'
+    fi
+    printf 'restore_dir=%s\n' "$destination"
+)
+
+if [[ $operation == restore ]]; then
+    restore_backup "$@"
+    exit 0
+fi
 
 if [[ $operation == verify ]]; then
     backup_directory=$(realpath --canonicalize-existing -- "$1") || die 'backup directory does not exist'

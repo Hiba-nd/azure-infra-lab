@@ -19,7 +19,7 @@ expect_code() {
 source_dir="$test_dir/source data"
 backup_root="$test_dir/backup store"
 restore_dir="$test_dir/restored data"
-mkdir -p "$source_dir/config data" "$source_dir/empty" "$backup_root" "$restore_dir"
+mkdir -p "$source_dir/config data" "$source_dir/empty" "$backup_root"
 printf 'port=8080\n' > "$source_dir/config data/app.conf"
 printf 'A\0B\n' > "$source_dir/binary.dat"
 printf 'hidden\n' > "$source_dir/.hidden"
@@ -46,13 +46,41 @@ pass 'successful publication uses private directories and files'
 expect_code 0 "${backup[@]}" verify "$created"
 grep -qx 'status=ok' "$test_dir/stdout" || fail 'verification result missing'
 
-tar --extract --gzip --file "$created/archive.tar.gz" --directory "$restore_dir"
+expect_code 0 "${backup[@]}" restore "$created" "$restore_dir"
+grep -Fxq "restore_dir=$restore_dir" "$test_dir/stdout" || fail 'restore destination missing from report'
 for file in 'config data/app.conf' binary.dat .hidden; do
     cmp -- "$source_dir/$file" "$restore_dir/$file" || fail "restore changed file contents: $file"
 done
 [[ -d $restore_dir/empty ]] || fail 'empty directory did not survive restore'
 [[ -L $restore_dir/link && $(readlink -- "$restore_dir/link") == ../outside.txt ]] || fail 'symlink was dereferenced or lost'
 pass 'real restore preserves binary/text contents, hidden files, empty directories, and symlinks'
+
+printf 'keep existing contents\n' > "$restore_dir/existing.txt"
+expect_code 1 "${backup[@]}" restore "$created" "$restore_dir"
+grep -qx 'keep existing contents' "$restore_dir/existing.txt" || fail 'existing destination was changed'
+ln -s absent "$test_dir/dangling"
+expect_code 1 "${backup[@]}" restore "$created" "$test_dir/dangling"
+[[ -L $test_dir/dangling && $(readlink -- "$test_dir/dangling") == absent ]] || fail 'dangling destination link was changed'
+pass 'restore preserves existing destinations and dangling links'
+
+mkdir -- "$test_dir/parent" "$test_dir/parent"$'\n'
+ln -s $'parent\n' "$test_dir/parent-link"
+expect_code 2 "${backup[@]}" restore "$created" "$test_dir/parent-link/restored"
+[[ ! -e $test_dir/parent/restored ]] || fail 'canonical path was truncated at a line break'
+pass 'restore rejects line breaks in the resolved destination'
+
+mv() {
+    mkdir -- "$RESTORE_TEST_DESTINATION" || return 1
+    printf 'keep competing contents\n' > "$RESTORE_TEST_DESTINATION/existing.txt" || return 1
+    command mv "$@"
+}
+export -f mv
+RESTORE_TEST_DESTINATION="$test_dir/competing" expect_code 1 "${backup[@]}" restore "$created" "$test_dir/competing"
+unset -f mv
+grep -qx 'keep competing contents' "$test_dir/competing/existing.txt" || fail 'competing destination was changed'
+grep -q 'destination appeared during extraction' "$test_dir/stderr" || fail 'publication collision diagnostic missing'
+[[ ! -s $test_dir/stdout ]] || fail 'publication collision reported success'
+pass 'restore preserves a destination created during publication'
 
 first_digest=$(sha256sum < "$created/archive.tar.gz")
 expect_code 0 "${backup[@]}" create "$source_dir" "$backup_root"
@@ -74,6 +102,28 @@ expect_code 1 "${backup[@]}" verify "$test_dir/corrupt"
 [[ ! -s $test_dir/stdout ]] || fail 'corrupted archive must not report success'
 grep -q 'checksum mismatch' "$test_dir/stderr" || fail 'checksum mismatch diagnostic missing'
 pass 'archive corruption is detected before any restore'
+expect_code 1 "${backup[@]}" restore "$test_dir/corrupt" "$test_dir/corrupt-restore"
+[[ ! -e $test_dir/corrupt-restore && ! -s $test_dir/stdout ]] || fail 'corrupt archive was published'
+grep -q 'checksum mismatch' "$test_dir/stderr" || fail 'restore integrity diagnostic missing'
+pass 'restore refuses to publish a corrupted archive'
+
+tar() {
+    if [[ $1 != --extract ]]; then command tar "$@"; return; fi
+    while (( $# > 1 )) && [[ $1 != --directory ]]; do shift; done
+    [[ $1 == --directory && $# == 2 ]] || return 2
+    mkdir -- "$2/partial" || return 2
+    printf 'partial data\n' > "$2/partial/file" || return 2
+    chmod 500 -- "$2/partial" || return 2
+    printf 'simulated failure after writing partial data\n' >&2
+    return 2
+}
+export -f tar
+expect_code 1 "${backup[@]}" restore "$created" "$test_dir/failed-restore"
+unset -f tar
+grep -q 'simulated failure after writing partial data' "$test_dir/stderr" || fail 'partial extraction was not exercised'
+[[ ! -e $test_dir/failed-restore && ! -s $test_dir/stdout ]] || fail 'partial extraction was published'
+[[ -z $(find "$test_dir" -maxdepth 1 -name '.restore.*' -print -quit) ]] || fail 'restore left a staging directory behind'
+pass 'partial extraction cleans staging even with read-only restored directories'
 
 printf 'not a tar archive\n' > "$test_dir/malformed/archive.tar.gz"
 digest=$(sha256sum < "$test_dir/malformed/archive.tar.gz")

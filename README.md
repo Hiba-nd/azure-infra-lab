@@ -43,12 +43,34 @@ semantics, options, and test coverage.
 See [directory backups](docs/backups.md) for creation, verification, restore, and
 consistency limits.
 
+## Install on an Ubuntu host
+
+Run the playbook from a Linux machine with Ansible. The Ubuntu host needs
+Python 3, SSH access, and an account that can use sudo. Create an inventory on
+your controller with the `lab` group and substitute your host and username.
+
+```ini
+[lab]
+lab-vm ansible_host=192.0.2.10 ansible_user=ubuntu
+```
+
+```bash
+ansible-playbook -i /path/to/lab.ini ansible/install-tools.yml --limit lab-vm
+```
+
+Add `--ask-become-pass` if sudo prompts for a password. The playbook installs
+the scripts and their libraries under `/opt/azure-infra-lab/scripts` with root
+ownership. Run `/opt/azure-infra-lab/scripts/check-environment.sh` on the host to
+check the installation. A second playbook run should report `changed=0`.
+
 ## Continuous integration
 
 The Linux CI workflow validates Compose and runs the same lab tests on pushes to
 `main` and pull requests targeting it. The Ubuntu runner pulls the image pinned
 in `compose.yaml`. The checkout uses a read-only repository token and clears its
 credentials before the test steps.
+The runner also applies the Ansible playbook locally, checks the installed
+files, and requires `changed=0` on the second run.
 
 ## Limits
 

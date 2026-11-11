@@ -1,0 +1,28 @@
+---
+- name: Install the lab tools
+  hosts: lab
+  become: true
+  gather_facts: false
+  vars:
+    lab_install_dir: /opt/azure-infra-lab
+
+  tasks:
+    - name: Create the installation directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - "{{ lab_install_dir }}"
+        - "{{ lab_install_dir }}/scripts"
+
+    - name: Copy the lab scripts and their libraries
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../scripts/"
+        dest: "{{ lab_install_dir }}/scripts/"
+        owner: root
+        group: root
+        mode: preserve
+        directory_mode: "0755"

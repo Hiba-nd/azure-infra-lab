@@ -28,21 +28,5 @@ jobs:
       - name: Run Linux tests
         run: docker compose run --rm --no-deps -T lab timeout --kill-after=2s 60s bash tests/run.sh --lab
 
-      - name: Verify Ansible installation and idempotence
-        shell: bash
-        env:
-          ANSIBLE_NOCOLOR: '1'
-          ANSIBLE_STDOUT_CALLBACK: default
-        run: |
-          inventory="$RUNNER_TEMP/lab.ini"
-          printf '[lab]\nlocalhost ansible_connection=local ansible_python_interpreter=/usr/bin/python3\n' > "$inventory"
-          ansible-playbook -i "$inventory" ansible/install-tools.yml
-
-          installed=/opt/azure-infra-lab
-          diff -r scripts/ "$installed/scripts/"
-          test "$(stat -c '%U:%G:%a' "$installed")" = 'root:root:755'
-          test "$(stat -c '%U:%G:%a' "$installed/scripts/check-environment.sh")" = 'root:root:755'
-          bash "$installed/scripts/check-environment.sh"
-
-          ansible-playbook -i "$inventory" ansible/install-tools.yml | tee "$RUNNER_TEMP/ansible-second-run.log"
-          grep -Eq '^localhost[[:space:]]*:[[:space:]]+ok=[1-9][0-9]*[[:space:]]+changed=0[[:space:]]+unreachable=0[[:space:]]+failed=0' "$RUNNER_TEMP/ansible-second-run.log"
+      - name: Verify Ansible deployment and permission repair over SSH
+        run: bash tests/test-ansible-ssh.sh

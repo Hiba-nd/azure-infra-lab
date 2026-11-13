@@ -69,12 +69,14 @@ The Linux CI workflow validates Compose and runs the same lab tests on pushes to
 `main` and pull requests targeting it. The Ubuntu runner pulls the image pinned
 in `compose.yaml`. The checkout uses a read-only repository token and clears its
 credentials before the test steps.
-The runner also applies the Ansible playbook locally, checks the installed
-files, and requires `changed=0` on the second run.
+The Ansible test connects over SSH to a temporary server bound to the Ubuntu
+runner's loopback address. It checks the installed files, changes the mode of
+`check-environment.sh` from `0755` to `0644`, and verifies that the playbook
+restores `0755`. The final run must report `changed=0`.
 
 ## Limits
 
 Git Bash on Windows is not Linux. The container shares Docker's Linux kernel;
 `/proc` data can describe the Docker host rather than container resource limits.
-It does not validate SSH, systemd, VM boot, or Azure behavior. No cloud resources
-or deployment workflows are configured.
+The SSH test covers deployment and permission repair on the runner. Testing on
+a separate Ubuntu host and validating systemd, VM boot, and Azure are future work.

@@ -6,6 +6,8 @@ thresholds and explicit failure statuses. A periodic runner adds bounded check
 execution and shutdown cleanup. Neither command changes host configuration.
 The directory backup command creates private, versioned archives with checksum
 verification and publishes them only after verification succeeds.
+Ansible installs the tools on an Ubuntu host. Terraform defines an Azure VM and
+its network for running the lab on Azure.
 
 ## Run
 
@@ -74,9 +76,16 @@ runner's loopback address. It checks the installed files, changes the mode of
 `check-environment.sh` from `0755` to `0644`, and verifies that the playbook
 restores `0755`. The final run must report `changed=0`.
 
+## Azure infrastructure
+
+The Terraform configuration defines the network and Ubuntu VM for the lab. CI
+validates the configuration and runs mock plans. The Azure guide covers inputs,
+planning, and the handoff to Ansible. [Terraform guide](terraform/README.md)
+
 ## Limits
 
 Git Bash on Windows is not Linux. The container shares Docker's Linux kernel;
 `/proc` data can describe the Docker host rather than container resource limits.
-The SSH test covers deployment and permission repair on the runner. Testing on
-a separate Ubuntu host and validating systemd, VM boot, and Azure are future work.
+The SSH test covers deployment and permission repair on the runner. The Terraform
+tests cover the configuration with a mock provider. A live Azure deployment is
+needed to verify VM boot and SSH access from the administrator's network.

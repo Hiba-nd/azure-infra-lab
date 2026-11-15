@@ -45,11 +45,33 @@ The default size is `Standard_B2ls_v2`. The Canonical image uses the latest Ubun
 version when testing a live deployment. This lab uses local Terraform state.
 Keep state and plan files on the machine that manages the deployment.
 
-After an approved apply, `terraform -chdir=terraform output -raw public_ip`
-and `terraform -chdir=terraform output -raw admin_username` supply the values for
-the Ansible inventory described in the [root README](../README.md). Verify the VM's
-SSH host key before connecting. When the lab is finished, review a destroy plan
-and confirm the dedicated resource group and its resources have been removed.
+## Generate the Ansible inventory
+
+After an approved apply, verify the VM's SSH host key through a trusted channel
+and add it to your controller's `known_hosts`. From the repository root on the
+Linux controller, run the following with the private key matching the public key
+used for the VM:
+
+```bash
+(
+  set -euo pipefail
+  umask 077
+  mkdir -p artifacts
+  terraform -chdir=terraform output -json \
+    | python3 ansible/render-inventory.py > artifacts/lab.json
+  ANSIBLE_HOST_KEY_CHECKING=True ansible-playbook -i artifacts/lab.json \
+    --private-key ~/.ssh/id_ed25519 ansible/install-tools.yml --limit lab-vm
+)
+```
+
+The renderer reads the `public_ip` and `admin_username` outputs from the current
+state and writes a single host in the `lab` group. Missing or invalid values
+stop the command before Ansible runs. Regenerate the inventory after replacing
+the VM. Keep `terraform output -json` in the pipe because Terraform includes any
+sensitive output values in its JSON.
+
+When the lab is finished, review a destroy plan and confirm the dedicated resource
+group and its resources have been removed.
 
 The live Azure plan, VM boot, and SSH access to that VM still need verification
 against the selected subscription.

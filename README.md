@@ -48,8 +48,10 @@ consistency limits.
 ## Install on an Ubuntu host
 
 Run the playbook from a Linux machine with Ansible. The Ubuntu host needs
-Python 3, SSH access, and an account that can use sudo. Create an inventory on
-your controller with the `lab` group and substitute your host and username.
+Python 3, SSH access, and an account that can use sudo. For a Terraform-managed
+VM, see [Generate the Ansible inventory](terraform/README.md#generate-the-ansible-inventory).
+For an existing host, create an inventory on your controller with the `lab` group
+and substitute your host and username.
 
 ```ini
 [lab]
@@ -71,10 +73,12 @@ The Linux CI workflow validates Compose and runs the same lab tests on pushes to
 `main` and pull requests targeting it. The Ubuntu runner pulls the image pinned
 in `compose.yaml`. The checkout uses a read-only repository token and clears its
 credentials before the test steps.
-The Ansible test connects over SSH to a temporary server bound to the Ubuntu
-runner's loopback address. It checks the installed files, changes the mode of
-`check-environment.sh` from `0755` to `0644`, and verifies that the playbook
-restores `0755`. The final run must report `changed=0`.
+CI tests inventory generation with `python3 tests/test-inventory.py -v`. The
+Ansible test generates an inventory from fixture Terraform outputs and connects
+over SSH to a temporary server on the Ubuntu runner's loopback address. It checks
+the installed files, changes the mode of `check-environment.sh` from `0755` to
+`0644`, and verifies that the playbook restores `0755`. The final run must report
+`changed=0`.
 
 ## Azure infrastructure
 

@@ -58,11 +58,20 @@ sudo -n mkdir -p /run/sshd
 sudo -n /usr/sbin/sshd -t -f "$test_dir/sshd_config"
 sudo -n /usr/sbin/sshd -f "$test_dir/sshd_config" -E "$test_dir/sshd.log"
 
-printf '[lab]\nssh-lab ansible_host=127.0.0.1 ansible_connection=ssh ansible_python_interpreter=/usr/bin/python3\n' > "$test_dir/lab.ini"
+python3 - "$test_user" <<'PY' | python3 ansible/render-inventory.py > "$test_dir/lab.json"
+import json
+import sys
+
+print(json.dumps({
+    "public_ip": {"sensitive": False, "type": "string", "value": "127.0.0.1"},
+    "admin_username": {"sensitive": False, "type": "string", "value": sys.argv[1]},
+}))
+PY
 export ANSIBLE_NOCOLOR=1 ANSIBLE_STDOUT_CALLBACK=default ANSIBLE_HOST_KEY_CHECKING=True
 export ANSIBLE_SSH_ARGS="-F \"$test_dir/ssh_config\""
 export ANSIBLE_SSH_TRANSFER_METHOD=sftp
-playbook=(ansible-playbook -i "$test_dir/lab.ini" ansible/install-tools.yml -e "lab_install_dir=$installed")
+playbook=(ansible-playbook -i "$test_dir/lab.json" ansible/install-tools.yml
+    -e "lab_install_dir=$installed" -e ansible_python_interpreter=/usr/bin/python3)
 
 "${playbook[@]}"
 diff -r scripts/ "$installed/scripts/"
@@ -74,9 +83,9 @@ sudo -n chmod 0644 -- "$check_script"
 test "$(stat -c '%a' "$check_script")" = 644
 "${playbook[@]}" | tee "$test_dir/repair.log"
 test "$(stat -c '%U:%G:%a' "$check_script")" = root:root:755
-grep -Eq '^ssh-lab[[:space:]]*:[[:space:]]+ok=[1-9][0-9]*[[:space:]]+changed=1[[:space:]]+unreachable=0[[:space:]]+failed=0' "$test_dir/repair.log"
+grep -Eq '^lab-vm[[:space:]]*:[[:space:]]+ok=[1-9][0-9]*[[:space:]]+changed=1[[:space:]]+unreachable=0[[:space:]]+failed=0' "$test_dir/repair.log"
 printf 'PASS: Ansible restored the script mode from 0644 to 0755 over SSH\n'
 
 "${playbook[@]}" | tee "$test_dir/recheck.log"
-grep -Eq '^ssh-lab[[:space:]]*:[[:space:]]+ok=[1-9][0-9]*[[:space:]]+changed=0[[:space:]]+unreachable=0[[:space:]]+failed=0' "$test_dir/recheck.log"
+grep -Eq '^lab-vm[[:space:]]*:[[:space:]]+ok=[1-9][0-9]*[[:space:]]+changed=0[[:space:]]+unreachable=0[[:space:]]+failed=0' "$test_dir/recheck.log"
 printf 'PASS: Ansible reported changed=0 after repairing permissions\n'

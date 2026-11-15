@@ -28,5 +28,8 @@ jobs:
       - name: Run Linux tests
         run: docker compose run --rm --no-deps -T lab timeout --kill-after=2s 60s bash tests/run.sh --lab
 
+      - name: Test inventory generation
+        run: python3 tests/test-inventory.py -v
+
       - name: Verify Ansible deployment and permission repair over SSH
         run: bash tests/test-ansible-ssh.sh

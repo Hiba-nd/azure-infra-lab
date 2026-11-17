@@ -33,3 +33,6 @@ jobs:
 
       - name: Verify Ansible deployment and permission repair over SSH
         run: bash tests/test-ansible-ssh.sh
+
+      - name: Verify the systemd health check timer
+        run: bash tests/test-systemd-monitoring.sh

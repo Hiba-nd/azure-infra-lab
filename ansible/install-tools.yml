@@ -5,6 +5,7 @@
   gather_facts: false
   vars:
     lab_install_dir: /opt/azure-infra-lab
+    lab_configure_health_timer: false
 
   tasks:
     - name: Create the installation directories
@@ -26,3 +27,24 @@
         group: root
         mode: preserve
         directory_mode: "0755"
+
+    - name: Schedule health checks
+      when: lab_configure_health_timer | bool
+      block:
+        - name: Install the systemd health check units
+          ansible.builtin.template:
+            src: "{{ item }}.j2"
+            dest: "/etc/systemd/system/{{ item }}"
+            owner: root
+            group: root
+            mode: "0644"
+          loop:
+            - azure-infra-health.service
+            - azure-infra-health.timer
+
+        - name: Enable and start the health check timer
+          ansible.builtin.systemd_service:
+            name: azure-infra-health.timer
+            daemon_reload: true
+            enabled: true
+            state: started

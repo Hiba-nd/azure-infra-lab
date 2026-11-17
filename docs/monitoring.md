@@ -63,8 +63,31 @@ stop its current check or delay, wait for the child, and remove temporary report
 the runner exits 130/143 respectively. It does not restart services or modify
 configuration. Separate invocations are independent; there is no global lock.
 
-Stdout/stderr can be captured by a caller or service manager. No persistent log
-store, rotation, external alert delivery, or service installation is provided.
+## systemd timer
+
+On an Ubuntu host with systemd, enable scheduled checks with the same inventory
+used to [install the lab tools](../README.md#install-on-an-ubuntu-host):
+
+```bash
+ansible-playbook -i /path/to/lab.ini ansible/install-tools.yml --limit lab-vm \
+  -e lab_configure_health_timer=true
+```
+
+The timer starts `azure-infra-health.service` each minute. The service runs one
+health check with its default thresholds and root filesystem path. It uses a
+temporary unprivileged account, a private network namespace, and a 15-second
+startup deadline. Reports and diagnostics go to the system journal under the
+host's retention policy.
+
+```bash
+systemctl list-timers azure-infra-health.timer
+sudo journalctl -u azure-infra-health.service -n 30 --no-pager
+sudo systemctl disable --now azure-infra-health.timer  # Stop scheduled checks
+```
+
+Systemd treats OK, WARNING, and CRITICAL as completed checks. Inspect `status=`
+in the journal for the health result. UNKNOWN and timeouts fail the unit, and the
+timer schedules the next check as usual. Alert delivery remains outside this lab.
 
 ## Measurement semantics
 
@@ -115,5 +138,6 @@ child termination, and temporary-file cleanup. Child discovery matches `Name` an
 In Docker, CPU and memory can describe Docker's host kernel while process visibility
 and filesystem mounts are container-specific. These metrics do not account for
 cgroup quotas and are not a container utilization exporter. Run on a Linux VM to
-observe that VM. The implementation has been exercised in the pinned Ubuntu lab;
-RHEL, systemd integration, external alerts, and Azure collection are not verified.
+observe that VM. The pinned Ubuntu lab covers collection and runner behavior.
+GitHub Actions tests the timer in the Ubuntu runner's systemd manager. RHEL and
+collection on an Azure VM remain unverified.

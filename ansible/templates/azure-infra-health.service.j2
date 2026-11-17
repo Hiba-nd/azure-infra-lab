@@ -1,0 +1,12 @@
+[Unit]
+Description=Azure infrastructure lab health check
+
+[Service]
+Type=oneshot
+ExecStart=:/usr/bin/bash {{ (lab_install_dir ~ '/scripts/health-check.sh') | replace('%', '%%') | to_json }}
+TimeoutStartSec=15s
+SuccessExitStatus=1 2
+DynamicUser=yes
+PrivateNetwork=yes
+StandardOutput=journal
+StandardError=journal

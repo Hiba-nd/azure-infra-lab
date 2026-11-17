@@ -66,6 +66,8 @@ Add `--ask-become-pass` if sudo prompts for a password. The playbook installs
 the scripts and their libraries under `/opt/azure-infra-lab/scripts` with root
 ownership. Run `/opt/azure-infra-lab/scripts/check-environment.sh` on the host to
 check the installation. A second playbook run should report `changed=0`.
+Use the [systemd timer](docs/monitoring.md#systemd-timer) to run health checks
+automatically on the host.
 
 ## Continuous integration
 
@@ -79,6 +81,8 @@ over SSH to a temporary server on the Ubuntu runner's loopback address. It check
 the installed files, changes the mode of `check-environment.sh` from `0755` to
 `0644`, and verifies that the playbook restores `0755`. The final run must report
 `changed=0`.
+The systemd test verifies timer activation, a health report in the journal, and
+an unchanged second playbook run on the Ubuntu runner.
 
 ## Azure infrastructure
 

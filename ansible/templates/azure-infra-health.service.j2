@@ -1,9 +1,13 @@
+{% set arguments = [lab_install_dir ~ '/scripts/health-check.sh', '--disk', lab_health_disk_path] %}
+{% if lab_health_process %}
+{% set arguments = arguments + ['--process', lab_health_process] %}
+{% endif %}
 [Unit]
 Description=Azure infrastructure lab health check
 
 [Service]
 Type=oneshot
-ExecStart=:/usr/bin/bash {{ (lab_install_dir ~ '/scripts/health-check.sh') | replace('%', '%%') | to_json }}
+ExecStart=:/usr/bin/bash {{ arguments | map('replace', '%', '%%') | map('to_json', ensure_ascii=False) | join(' ') }}
 TimeoutStartSec=15s
 SuccessExitStatus=1 2
 DynamicUser=yes

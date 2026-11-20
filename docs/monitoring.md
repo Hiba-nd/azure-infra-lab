@@ -74,8 +74,23 @@ ansible-playbook -i /path/to/lab.ini ansible/install-tools.yml --limit lab-vm \
 ```
 
 The timer starts `azure-infra-health.service` each minute. The service runs one
-health check with its default thresholds and root filesystem path. It uses a
-temporary unprivileged account, a private network namespace, and a 15-second
+health check with its default thresholds. Set `lab_health_disk_path` to the
+absolute path of a filesystem to check and `lab_health_process` to an optional
+Linux process name. The defaults are `/` and an empty process name. For example,
+add these variables to your inventory host:
+
+```ini
+lab-vm ansible_host=192.0.2.10 ansible_user=labadmin lab_health_disk_path=/var lab_health_process=sshd
+```
+
+Ansible validates the settings before changing the installation. The path must
+be accessible to the service account. Home directories are hidden by the service
+sandbox. Process names follow the health checker's 15-character limit. Arguments
+containing spaces, literal dollar signs, and percent signs retain their values
+when systemd executes the command.
+
+The service uses a temporary unprivileged account, a private network namespace,
+and a 15-second
 startup deadline. Reports and diagnostics go to the system journal under the
 host's retention policy.
 
@@ -88,6 +103,26 @@ sudo systemctl disable --now azure-infra-health.timer  # Stop scheduled checks
 Systemd treats OK, WARNING, and CRITICAL as completed checks. Inspect `status=`
 in the journal for the health result. UNKNOWN and timeouts fail the unit, and the
 timer schedules the next check as usual. Alert delivery remains outside this lab.
+
+## Failure and recovery test
+
+`tests/test-systemd-monitoring.sh` runs on a disposable Ubuntu systemd host. It
+creates a temporary installation and process, then exercises these cases:
+
+| Scenario | Required result |
+| --- | --- |
+| Invalid name, relative path, or control characters | Ansible fails before changing the installation |
+| Configured disk path and running process | Timer publishes a report from an unprivileged user |
+| Required process is stopped | Report contains `process_state=missing` and `status=CRITICAL`, exit 2, unit result `success` |
+| Metrics library is removed | Report contains `status=UNKNOWN`, exit 3, unit result `exit-code` |
+| Ansible restores the library | The next scheduled check completes with the process present |
+| Playbook is reapplied after repair | `changed=0` |
+
+Journal cursors keep each assertion scoped to new reports. The test keeps the
+timer running through the failures and repair. It waits for the next scheduled
+report after repair and verifies that the service has recovered without manually
+resetting its failed state. The temporary process, units, and installation are
+removed on exit.
 
 ## Measurement semantics
 

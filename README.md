@@ -81,8 +81,10 @@ over SSH to a temporary server on the Ubuntu runner's loopback address. It check
 the installed files, changes the mode of `check-environment.sh` from `0755` to
 `0644`, and verifies that the playbook restores `0755`. The final run must report
 `changed=0`.
-The systemd test verifies timer activation, a health report in the journal, and
-an unchanged second playbook run on the Ubuntu runner.
+The systemd test verifies configured monitoring targets, timer activation, and
+reports from an unprivileged user. It stops a required process, removes the
+metrics library, and checks detection and recovery after Ansible repairs the
+installation. The final playbook run must report `changed=0`.
 
 ## Azure infrastructure
 

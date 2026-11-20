@@ -6,8 +6,22 @@
   vars:
     lab_install_dir: /opt/azure-infra-lab
     lab_configure_health_timer: false
+    lab_health_disk_path: /
+    lab_health_process: ""
 
   tasks:
+    - name: Validate scheduled health check settings
+      when: lab_configure_health_timer | bool
+      ansible.builtin.assert:
+        that:
+          - lab_health_disk_path is string
+          - lab_health_disk_path.startswith('/')
+          - lab_health_disk_path is not search('[\\x00-\\x1f\\x7f]')
+          - lab_health_process is string
+          - lab_health_process == '' or lab_health_process is match('^[a-zA-Z0-9_.:-]{1,15}\\Z')
+        fail_msg: Use an absolute disk path without control characters and a valid Linux process name.
+        quiet: true
+
     - name: Create the installation directories
       ansible.builtin.file:
         path: "{{ item }}"

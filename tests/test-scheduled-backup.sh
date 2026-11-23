@@ -101,6 +101,8 @@ for invalid in nested-root invalid-schedule; do
         exit 1
     fi
 done
+grep -q 'TASK \[Keep backups outside the source tree\]' "$test_dir/nested-root.log"
+grep -q 'TASK \[Validate the backup schedule\]' "$test_dir/invalid-schedule.log"
 printf 'PASS: Nested storage and an invalid schedule were rejected before backup setup\n'
 
 journal_cursor=$(sudo -n journalctl -n 0 --show-cursor -o cat | sed -n 's/^-- cursor: //p')

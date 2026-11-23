@@ -19,8 +19,9 @@ or under ignored `backups/` storage.
 
 ## Scheduled backups
 
-On an Ubuntu host with systemd, run the backup playbook with the source directory
-you want to protect. It imports the existing tool installer, creates the
+Use a Linux controller with ansible-core 2.16 or newer and an Ubuntu host with
+systemd. Run the backup playbook with the source directory you want to protect.
+It imports the existing tool installer, creates the
 `azure-lab-backup` system account with a non-login shell, and enables the timer.
 
 ```bash

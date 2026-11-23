@@ -27,16 +27,12 @@
         fail_msg: Supply an absolute source and backup path and a systemd calendar expression without control characters.
         quiet: true
 
-    - name: Inspect the source directory
-      ansible.builtin.stat:
-        path: "{{ lab_backup_source }}"
-        follow: true
-      register: backup_source
-
     - name: Require an existing source directory
-      ansible.builtin.assert:
-        that: backup_source.stat.isdir | default(false)
-        quiet: true
+      ansible.builtin.command:
+        argv: [/usr/bin/test, -d, "{{ lab_backup_source }}"]
+        expand_argument_vars: false
+      changed_when: false
+      check_mode: false
 
     - name: Resolve the source and backup paths
       ansible.builtin.command:
@@ -46,6 +42,7 @@
           - --
           - "{{ lab_backup_source }}"
           - "{{ lab_backup_root }}"
+        expand_argument_vars: false
       register: backup_paths
       changed_when: false
       check_mode: false
@@ -60,6 +57,7 @@
     - name: Validate the backup schedule
       ansible.builtin.command:
         argv: [systemd-analyze, calendar, --, "{{ lab_backup_on_calendar }}"]
+        expand_argument_vars: false
       changed_when: false
       check_mode: false
 
@@ -77,13 +75,29 @@
         home: /nonexistent
         shell: /usr/sbin/nologin
 
-    - name: Create private backup storage
-      ansible.builtin.file:
-        path: "{{ lab_backup_root }}"
-        state: directory
-        owner: azure-lab-backup
-        group: azure-lab-backup
-        mode: "0700"
+    - name: Read the backup storage permissions
+      ansible.builtin.command:
+        argv: [/usr/bin/stat, --dereference, '--format=%F:%U:%G:%a', --, "{{ backup_paths.stdout_lines[1] }}"]
+        expand_argument_vars: false
+      environment:
+        LC_ALL: C
+      register: backup_storage
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Ensure private backup storage using the literal path
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/install
+          - --directory
+          - --owner=azure-lab-backup
+          - --group=azure-lab-backup
+          - --mode=0700
+          - --
+          - "{{ backup_paths.stdout_lines[1] }}"
+        expand_argument_vars: false
+      when: backup_storage.rc != 0 or backup_storage.stdout != 'directory:azure-lab-backup:azure-lab-backup:700'
 
     - name: Install the backup units
       ansible.builtin.template:

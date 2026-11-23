@@ -68,6 +68,8 @@ ownership. Run `/opt/azure-infra-lab/scripts/check-environment.sh` on the host t
 check the installation. A second playbook run should report `changed=0`.
 Use the [systemd timer](docs/monitoring.md#systemd-timer) to run health checks
 automatically on the host.
+The [backup playbook](docs/backups.md#scheduled-backups) schedules verified
+directory backups under a dedicated account.
 
 ## Continuous integration
 
@@ -85,6 +87,8 @@ The systemd test verifies configured monitoring targets, timer activation, and
 reports from an unprivileged user. It stops a required process, removes the
 metrics library, and checks detection and recovery after Ansible repairs the
 installation. The final playbook run must report `changed=0`.
+The backup test exercises a real timer activation, archive verification and
+restore, an unreadable source failure, and recovery after fixing permissions.
 
 ## Azure infrastructure
 

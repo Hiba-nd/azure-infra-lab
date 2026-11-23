@@ -1,0 +1,20 @@
+{% set arguments = [lab_install_dir ~ '/scripts/backup-directory.sh', 'create', lab_backup_source, lab_backup_root] %}
+[Unit]
+Description=Verified directory backup for the infrastructure lab
+
+[Service]
+Type=oneshot
+User=azure-lab-backup
+Group=azure-lab-backup
+ExecStart=:/usr/bin/bash {{ arguments | map('replace', '%', '%%') | map('to_json', ensure_ascii=False) | join(' ') }}
+TimeoutStartSec=5min
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+ReadWritePaths={{ lab_backup_root | replace('%', '%%') | to_json(ensure_ascii=False) }}
+StandardOutput=journal
+StandardError=journal

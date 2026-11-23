@@ -36,3 +36,6 @@ jobs:
 
       - name: Verify the systemd health check timer
         run: bash tests/test-systemd-monitoring.sh
+
+      - name: Verify scheduled backups and restore
+        run: bash tests/test-scheduled-backup.sh

@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule verified directory backups
+
+[Timer]
+OnCalendar={{ lab_backup_on_calendar }}
+Persistent=yes
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

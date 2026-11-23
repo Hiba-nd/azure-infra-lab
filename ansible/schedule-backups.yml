@@ -1,0 +1,104 @@
+---
+- name: Install the backup command
+  ansible.builtin.import_playbook: install-tools.yml
+
+- name: Schedule directory backups
+  hosts: lab
+  become: true
+  gather_facts: false
+  vars:
+    lab_install_dir: /opt/azure-infra-lab
+    lab_backup_root: /var/lib/azure-infra-lab/backups
+    lab_backup_on_calendar: daily
+
+  tasks:
+    - name: Validate backup settings
+      ansible.builtin.assert:
+        that:
+          - lab_backup_source is defined
+          - lab_backup_source is string
+          - lab_backup_source.startswith('/')
+          - lab_backup_source is not search('[\\x00-\\x1f\\x7f]')
+          - lab_backup_root is string
+          - lab_backup_root.startswith('/')
+          - lab_backup_root is not search('[\\x00-\\x1f\\x7f]')
+          - lab_backup_on_calendar is string
+          - lab_backup_on_calendar is not search('[\\x00-\\x1f\\x7f]')
+        fail_msg: Supply an absolute source and backup path and a systemd calendar expression without control characters.
+        quiet: true
+
+    - name: Inspect the source directory
+      ansible.builtin.stat:
+        path: "{{ lab_backup_source }}"
+        follow: true
+      register: backup_source
+
+    - name: Require an existing source directory
+      ansible.builtin.assert:
+        that: backup_source.stat.isdir | default(false)
+        quiet: true
+
+    - name: Resolve the source and backup paths
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/realpath
+          - --canonicalize-missing
+          - --
+          - "{{ lab_backup_source }}"
+          - "{{ lab_backup_root }}"
+      register: backup_paths
+      changed_when: false
+      check_mode: false
+
+    - name: Keep backups outside the source tree
+      ansible.builtin.assert:
+        that:
+          - backup_paths.stdout_lines[1] != backup_paths.stdout_lines[0]
+          - not backup_paths.stdout_lines[1].startswith(backup_paths.stdout_lines[0].rstrip('/') ~ '/')
+        quiet: true
+
+    - name: Validate the backup schedule
+      ansible.builtin.command:
+        argv: [systemd-analyze, calendar, --, "{{ lab_backup_on_calendar }}"]
+      changed_when: false
+      check_mode: false
+
+    - name: Create the backup group
+      ansible.builtin.group:
+        name: azure-lab-backup
+        system: true
+
+    - name: Create an unprivileged backup account
+      ansible.builtin.user:
+        name: azure-lab-backup
+        group: azure-lab-backup
+        system: true
+        create_home: false
+        home: /nonexistent
+        shell: /usr/sbin/nologin
+
+    - name: Create private backup storage
+      ansible.builtin.file:
+        path: "{{ lab_backup_root }}"
+        state: directory
+        owner: azure-lab-backup
+        group: azure-lab-backup
+        mode: "0700"
+
+    - name: Install the backup units
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - azure-infra-backup.service
+        - azure-infra-backup.timer
+
+    - name: Enable and start scheduled backups
+      ansible.builtin.systemd_service:
+        name: azure-infra-backup.timer
+        daemon_reload: true
+        enabled: true
+        state: started

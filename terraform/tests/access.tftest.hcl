@@ -1,4 +1,28 @@
-mock_provider "azurerm" {}
+mock_provider "azurerm" {
+  mock_resource "azurerm_subnet" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/azure-infra-lab-rg/providers/Microsoft.Network/virtualNetworks/azure-infra-lab-vnet/subnets/lab"
+    }
+  }
+
+  mock_resource "azurerm_network_security_group" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/azure-infra-lab-rg/providers/Microsoft.Network/networkSecurityGroups/azure-infra-lab-nsg"
+    }
+  }
+
+  mock_resource "azurerm_public_ip" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/azure-infra-lab-rg/providers/Microsoft.Network/publicIPAddresses/azure-infra-lab-ip"
+    }
+  }
+
+  mock_resource "azurerm_network_interface" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/azure-infra-lab-rg/providers/Microsoft.Network/networkInterfaces/azure-infra-lab-nic"
+    }
+  }
+}
 
 variables {
   location        = "germanywestcentral"
@@ -45,6 +69,44 @@ run "restrict_vm_access" {
     )
     error_message = "The VM must use key authentication with Secure Boot and vTPM enabled."
   }
+
+  assert {
+    condition = (
+      length(azurerm_linux_virtual_machine.lab.boot_diagnostics) == 1 &&
+      one(azurerm_linux_virtual_machine.lab.boot_diagnostics).storage_account_uri == null
+    )
+    error_message = "The VM must enable boot diagnostics with Azure-managed storage."
+  }
+}
+
+run "verify_network_connections" {
+  command = apply
+
+  assert {
+    condition = (
+      azurerm_subnet_network_security_group_association.lab.subnet_id == azurerm_subnet.lab.id &&
+      azurerm_subnet_network_security_group_association.lab.network_security_group_id == azurerm_network_security_group.lab.id
+    )
+    error_message = "The subnet must use the lab network security group."
+  }
+
+  assert {
+    condition = (
+      one(azurerm_network_interface.lab.ip_configuration).subnet_id == azurerm_subnet.lab.id &&
+      one(azurerm_network_interface.lab.ip_configuration).public_ip_address_id == azurerm_public_ip.lab.id &&
+      one(azurerm_linux_virtual_machine.lab.network_interface_ids) == azurerm_network_interface.lab.id
+    )
+    error_message = "The VM must use the lab NIC, secured subnet, and public IP."
+  }
+
+  assert {
+    condition = (
+      !azurerm_subnet.lab.default_outbound_access_enabled &&
+      azurerm_public_ip.lab.sku == "Standard" &&
+      azurerm_public_ip.lab.allocation_method == "Static"
+    )
+    error_message = "The lab must use its explicit public IP for outbound connectivity."
+  }
 }
 
 run "reject_wide_ssh_access" {
@@ -55,4 +117,54 @@ run "reject_wide_ssh_access" {
   }
 
   expect_failures = [var.ssh_source_cidr]
+}
+
+run "reject_subnet_ssh_access" {
+  command = plan
+
+  variables {
+    ssh_source_cidr = "203.0.113.0/24"
+  }
+
+  expect_failures = [var.ssh_source_cidr]
+}
+
+run "reject_ipv6_ssh_source" {
+  command = plan
+
+  variables {
+    ssh_source_cidr = "2001:db8::1/128"
+  }
+
+  expect_failures = [var.ssh_source_cidr]
+}
+
+run "reject_malformed_ssh_source" {
+  command = plan
+
+  variables {
+    ssh_source_cidr = "invalid/32"
+  }
+
+  expect_failures = [var.ssh_source_cidr]
+}
+
+run "reject_blank_ssh_key" {
+  command = plan
+
+  variables {
+    ssh_public_key = ""
+  }
+
+  expect_failures = [var.ssh_public_key]
+}
+
+run "reject_blank_location" {
+  command = plan
+
+  variables {
+    location = " "
+  }
+
+  expect_failures = [var.location]
 }

@@ -4,7 +4,7 @@ This configuration describes one Ubuntu 24.04 LTS VM, a virtual network and subn
 a network security group, and a static public IPv4 address. The subnet allows
 TCP port 22 from the configured IPv4 `/32` and denies other inbound traffic. The
 public IP provides explicit outbound connectivity. SSH uses a public key, and the
-VM enables Secure Boot and vTPM.
+VM enables Secure Boot, vTPM, and boot diagnostics with Azure-managed storage.
 
 ## Validate
 
@@ -17,9 +17,12 @@ terraform -chdir=terraform validate
 terraform -chdir=terraform test
 ```
 
-The tests use a mock AzureRM provider. They check the planned access rules and
-VM security settings and verify that Terraform rejects unrestricted SSH. GitHub
-Actions runs the same checks on changes to the Terraform configuration.
+The tests use a mock AzureRM provider. They check the planned access rules,
+VM security settings, and boot diagnostics. A mocked apply checks the connections
+between the VM, network interface, public IP, subnet, and security group. Input
+tests reject broad SSH ranges, IPv6, malformed CIDRs, and missing key or region
+values. GitHub Actions runs the same checks on changes to the Terraform
+configuration.
 
 ## Prepare a deployment plan
 
@@ -75,3 +78,11 @@ group and its resources have been removed.
 
 The live Azure plan, VM boot, and SSH access to that VM still need verification
 against the selected subscription.
+
+## Boot troubleshooting
+
+After deployment, open the VM's **Boot diagnostics** view in the Azure portal to
+inspect the serial log and screenshot. Record any observed boot error before
+changing the VM. These diagnostics help investigate failures that prevent SSH
+from starting. Collection and retrieval still need verification on the deployed
+VM. [Azure boot diagnostics](https://learn.microsoft.com/azure/virtual-machines/boot-diagnostics)

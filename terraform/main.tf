@@ -110,6 +110,8 @@ resource "azurerm_linux_virtual_machine" "lab" {
     storage_account_type = "StandardSSD_LRS"
   }
 
+  boot_diagnostics {}
+
   source_image_reference {
     publisher = "Canonical"
     offer     = "ubuntu-24_04-lts"

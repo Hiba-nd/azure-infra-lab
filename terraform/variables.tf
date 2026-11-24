@@ -37,3 +37,34 @@ variable "ssh_public_key" {
     error_message = "Supply an OpenSSH Ed25519 or RSA public key."
   }
 }
+
+variable "enable_cpu_alert" {
+  description = "Create the Azure Monitor CPU alert and its email action group."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "alert_email" {
+  description = "Notification email address, required when the CPU alert is enabled."
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = !var.enable_cpu_alert || can(regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", var.alert_email))
+    error_message = "Supply a notification email address when enable_cpu_alert is true."
+  }
+}
+
+variable "cpu_alert_threshold" {
+  description = "Average CPU percentage above which the five-minute alert fires."
+  type        = number
+  default     = 80
+  nullable    = false
+
+  validation {
+    condition     = var.cpu_alert_threshold >= 0 && var.cpu_alert_threshold <= 100
+    error_message = "Set cpu_alert_threshold to a percentage from 0 to 100."
+  }
+}

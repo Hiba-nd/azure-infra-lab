@@ -24,6 +24,43 @@ tests reject broad SSH ranges, IPv6, malformed CIDRs, and missing key or region
 values. GitHub Actions runs the same checks on changes to the Terraform
 configuration.
 
+## CPU alert
+
+Set `enable_cpu_alert=true` to add an Azure Monitor metric alert and an email
+action group. The rule evaluates the VM's `Percentage CPU` metric every minute
+using a five-minute average. It fires when that average is greater than
+`cpu_alert_threshold`, which defaults to 80 percent, with severity 2 and automatic
+resolution enabled. [VM platform metrics](https://learn.microsoft.com/azure/azure-monitor/reference/supported-metrics/microsoft-compute-virtualmachines-metrics)
+
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `enable_cpu_alert` | `false` | Include the alert and action group in the deployment |
+| `alert_email` | `null` | Required notification address when the alert is enabled |
+| `cpu_alert_threshold` | `80` | CPU percentage from 0 to 100 |
+
+After approving monitoring costs and registering `Microsoft.Insights` in the
+selected subscription, add these environment variables to the deployment inputs:
+
+```bash
+export TF_VAR_enable_cpu_alert=true
+export TF_VAR_alert_email='<notification-email>'
+terraform -chdir=terraform plan -out=lab.tfplan
+```
+
+Review the plan for the VM scope, threshold, and notification action group before
+applying. Terraform marks the email input as sensitive in its plan output. State
+and saved plans still contain it and belong in private storage. Setting
+`enable_cpu_alert=false` removes the alert and action group in the next approved
+apply. Metric alert rules have usage charges to review before deployment.
+[Azure Monitor alert pricing](https://learn.microsoft.com/azure/azure-monitor/alerts/alerts-types)
+
+Tests cover the disabled default, enabled VM scope and notification settings,
+removal when disabled again, missing or invalid email, and threshold bounds.
+Metric ingestion, alert firing, delivery, and resolution still require a live
+test after deployment. Record the threshold, CPU time series, and timestamps for
+the fired and resolved states, together with the notification received. The
+Linux checks and backup jobs continue to publish their reports to journald.
+
 ## Prepare a deployment plan
 
 Sign in with the Azure CLI and select the intended subscription. The subscription

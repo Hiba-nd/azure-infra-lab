@@ -1,27 +1,5 @@
 mock_provider "azurerm" {
-  mock_resource "azurerm_subnet" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/azure-infra-lab-rg/providers/Microsoft.Network/virtualNetworks/azure-infra-lab-vnet/subnets/lab"
-    }
-  }
-
-  mock_resource "azurerm_network_security_group" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/azure-infra-lab-rg/providers/Microsoft.Network/networkSecurityGroups/azure-infra-lab-nsg"
-    }
-  }
-
-  mock_resource "azurerm_public_ip" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/azure-infra-lab-rg/providers/Microsoft.Network/publicIPAddresses/azure-infra-lab-ip"
-    }
-  }
-
-  mock_resource "azurerm_network_interface" {
-    defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/azure-infra-lab-rg/providers/Microsoft.Network/networkInterfaces/azure-infra-lab-nic"
-    }
-  }
+  source = "./tests/mocks"
 }
 
 variables {

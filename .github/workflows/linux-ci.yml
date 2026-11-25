@@ -31,6 +31,9 @@ jobs:
       - name: Test inventory generation
         run: python3 tests/test-inventory.py -v
 
+      - name: Test Azure deployment preflight
+        run: python3 tests/test-azure-preflight.py -v
+
       - name: Verify Ansible deployment and permission repair over SSH
         run: bash tests/test-ansible-ssh.sh
 

@@ -95,7 +95,9 @@ restore, an unreadable source failure, and recovery after fixing permissions.
 The Terraform configuration defines the network and Ubuntu VM for the lab, with
 an optional Azure Monitor CPU alert and email action group. CI validates the
 configuration and runs mocked plans and applies. The Azure guide covers inputs,
-planning, monitoring settings, and the handoff to Ansible. [Terraform guide](terraform/README.md)
+planning, monitoring settings, and the handoff to Ansible.
+The controller preflight checks the subscription, registered Azure providers,
+VM size restrictions, and vCPU quotas before preparing a deployment plan. [Terraform guide](terraform/README.md)
 
 ## Limits
 

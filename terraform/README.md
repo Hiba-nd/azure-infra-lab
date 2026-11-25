@@ -73,11 +73,51 @@ az login
 az account set --subscription '<subscription-id>'
 export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 export TF_VAR_location='<azure-region>'
+export TF_VAR_vm_size='Standard_B2ls_v2'
 export TF_VAR_ssh_source_cidr='<your-public-ipv4>/32'
 export TF_VAR_ssh_public_key="$(cat ~/.ssh/id_ed25519.pub)"
 terraform -chdir=terraform init
 terraform -chdir=terraform plan -out=lab.tfplan
 ```
+
+Use the same inputs to inspect the deployment prerequisites from a Linux controller
+with Python 3 and Azure CLI. Run from the repository root.
+
+```bash
+python3 tools/azure-preflight.py --subscription "$ARM_SUBSCRIPTION_ID" \
+  --location "$TF_VAR_location" --vm-size "$TF_VAR_vm_size"
+```
+
+Add `--with-cpu-alert` when enabling the optional CPU alert.
+
+The preflight checks the requested subscription is enabled and the required
+resource providers are registered. It selects an exact VM size from the region's
+SKU response, checks location restrictions, and compares its vCPU count against
+both the remaining regional and VM-family quotas. The check follows the lab VM's
+regional placement. Zone restrictions apply to deployments that select an
+availability zone. [Azure vCPU quotas](https://learn.microsoft.com/azure/virtual-machines/quotas)
+
+Every Azure command includes the supplied subscription ID. The tool uses
+`account show`, `provider show`, `vm list-skus`, and `vm list-usage`. Each command
+has a 60-second timeout. Successful output reports the selected region and SKU,
+required vCPUs, remaining quotas, and `status=ok`. Failures print a diagnostic on
+stderr with exit 1, while invalid arguments return 2. CLI error messages identify
+the operation to repeat directly for Azure's detailed diagnostics.
+
+Quota, SKU restrictions, and available compute capacity can change between this
+check and deployment. Azure evaluates capacity at creation. The real plan and
+deployment still need to verify access policies, image and security support,
+network resources, costs, and VM boot in the selected subscription.
+
+```bash
+python3 tests/test-azure-preflight.py -v
+```
+
+The tests simulate Azure CLI responses through its subprocess boundary and check
+that every requested operation is a subscription-scoped read. They cover
+registration, restricted sizes, both quota tiers and the exact quota boundary,
+missing or malformed data, sign-in errors, and timeouts. A live subscription check
+remains to be performed.
 
 Use your own SSH public key. The key under `tests/fixtures/` is test data.
 The default size is `Standard_B2ls_v2`. The Canonical image uses the latest Ubuntu

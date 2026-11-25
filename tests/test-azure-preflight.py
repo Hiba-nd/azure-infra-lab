@@ -26,7 +26,11 @@ class PreflightTests(unittest.TestCase):
             "resourceType": "virtualMachines",
             "locations": ["germanywestcentral"],
             "family": "standardBsv2Family",
-            "capabilities": [{"name": "vCPUs", "value": "2"}],
+            "capabilities": [
+                {"name": "vCPUs", "value": "2"},
+                {"name": "CpuArchitectureType", "value": "x64"},
+                {"name": "HyperVGenerations", "value": "V1,V2"},
+            ],
             "restrictions": [],
         }]
         self.usage = [
@@ -180,6 +184,46 @@ class PreflightTests(unittest.TestCase):
     def test_missing_cpu_capability_is_rejected(self):
         self.skus[0]["capabilities"] = []
         self.assert_failure("positive vCPU count")
+
+    def test_gen1_size_is_rejected(self):
+        for generations in ("V1", "V20"):
+            with self.subTest(generations=generations):
+                self.skus[0]["capabilities"][2]["value"] = generations
+                self.assert_failure("Generation 2")
+
+    def test_arm_size_is_rejected_for_the_x64_image(self):
+        self.skus[0]["capabilities"][1]["value"] = "Arm64"
+        self.assert_failure("x64 support")
+
+    def test_explicit_trusted_launch_support_is_checked(self):
+        self.skus[0]["capabilities"].append({"name": "TrustedLaunchDisabled", "value": "True"})
+        self.assert_failure("explicitly disables Trusted Launch")
+        self.skus[0]["capabilities"][-1]["value"] = "False"
+        status, _, stderr, _ = self.run_check()
+        self.assertEqual(status, 0, stderr)
+
+    def test_missing_security_capabilities_are_rejected(self):
+        original = list(self.skus[0]["capabilities"])
+        for name, message in (
+            ("CpuArchitectureType", "x64 support"),
+            ("HyperVGenerations", "Generation 2"),
+        ):
+            with self.subTest(name=name):
+                self.skus[0]["capabilities"] = [item for item in original if item["name"] != name]
+                self.assert_failure(message)
+
+    def test_malformed_or_duplicate_security_capabilities_are_rejected(self):
+        original = list(self.skus[0]["capabilities"])
+        for value in (None, "unknown"):
+            with self.subTest(value=value):
+                self.skus[0]["capabilities"] = [
+                    *original, {"name": "TrustedLaunchDisabled", "value": value},
+                ]
+                self.assert_failure("invalid TrustedLaunchDisabled")
+        self.skus[0]["capabilities"] = [
+            *original, {"name": "HyperVGenerations", "value": "V1"},
+        ]
+        self.assert_failure("duplicate HyperVGenerations")
 
 
 if __name__ == "__main__":

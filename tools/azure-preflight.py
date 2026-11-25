@@ -33,6 +33,16 @@ def read_azure(subscription, *command):
         raise ValueError(f"Azure CLI returned invalid JSON during {operation}") from None
 
 
+def capability_value(capabilities, name, default=None):
+    values = [
+        item.get("value") for item in capabilities
+        if isinstance(item, dict) and item.get("name") == name
+    ]
+    if len(values) > 1:
+        raise ValueError(f"SKU response has duplicate {name} capabilities")
+    return values[0] if values else default
+
+
 def quota_remaining(usage, name, required):
     matches = [
         item for item in usage
@@ -111,13 +121,27 @@ def check(args):
     capabilities = sku.get("capabilities")
     if not isinstance(family, str) or not family or not isinstance(capabilities, list):
         raise ValueError("SKU response is missing the VM family or capabilities")
-    cpu_values = [
-        item.get("value") for item in capabilities
-        if isinstance(item, dict) and item.get("name") == "vCPUs"
-    ]
-    if len(cpu_values) != 1 or not re.fullmatch(r"[1-9][0-9]*", str(cpu_values[0])):
+    cpu_value = capability_value(capabilities, "vCPUs")
+    if not re.fullmatch(r"[1-9][0-9]*", str(cpu_value)):
         raise ValueError("SKU response must contain a positive vCPU count")
-    required = int(cpu_values[0])
+    required = int(cpu_value)
+    architecture = capability_value(capabilities, "CpuArchitectureType")
+    if not isinstance(architecture, str) or architecture.casefold() != "x64":
+        raise ValueError("SKU must report x64 support for the configured Ubuntu image")
+    generations = capability_value(capabilities, "HyperVGenerations")
+    if (
+        not isinstance(generations, str)
+        or "V2" not in [item.strip().upper() for item in generations.split(",")]
+    ):
+        raise ValueError("SKU must report Generation 2 support for Secure Boot and vTPM")
+    trusted_launch_disabled = capability_value(capabilities, "TrustedLaunchDisabled", "false")
+    if (
+        not isinstance(trusted_launch_disabled, str)
+        or trusted_launch_disabled.casefold() not in ("true", "false")
+    ):
+        raise ValueError("SKU response has an invalid TrustedLaunchDisabled capability")
+    if trusted_launch_disabled.casefold() == "true":
+        raise ValueError("SKU explicitly disables Trusted Launch")
     usage = read_azure(args.subscription, "vm", "list-usage", "--location", args.location)
     if not isinstance(usage, list):
         raise ValueError("quota response must be a list")

@@ -97,7 +97,8 @@ an optional Azure Monitor CPU alert and email action group. CI validates the
 configuration and runs mocked plans and applies. The Azure guide covers inputs,
 planning, monitoring settings, and the handoff to Ansible.
 The controller preflight checks the subscription, registered Azure providers,
-VM size restrictions, and vCPU quotas before preparing a deployment plan. [Terraform guide](terraform/README.md)
+VM size capabilities and restrictions, and vCPU quotas before preparing a deployment
+plan. [Terraform guide](terraform/README.md)
 
 ## Limits
 

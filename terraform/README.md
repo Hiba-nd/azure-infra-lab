@@ -97,6 +97,16 @@ both the remaining regional and VM-family quotas. The check follows the lab VM's
 regional placement. Zone restrictions apply to deployments that select an
 availability zone. [Azure vCPU quotas](https://learn.microsoft.com/azure/virtual-machines/quotas)
 
+The configured Ubuntu 24.04 `server` image uses x64 and Generation 2. The
+preflight requires the SKU to report `CpuArchitectureType=x64` and
+`HyperVGenerations` containing `V2`. Missing or duplicate required capabilities
+fail the check. [Canonical image reference](https://ubuntu.com/azure/docs/azure-how-to/instances/find-ubuntu-images/)
+
+For Secure Boot and vTPM, it also checks `TrustedLaunchDisabled`. An explicit
+`True` value is rejected. On a Gen2 SKU, an omitted field follows Azure's
+convention for Trusted Launch support. Invalid or duplicate flag values fail the
+check. [Trusted Launch SKU checks](https://learn.microsoft.com/azure/virtual-machines/trusted-launch-faq#how-can-i-find-vm-sizes-that-support-trusted-launch)
+
 Every Azure command includes the supplied subscription ID. The tool uses
 `account show`, `provider show`, `vm list-skus`, and `vm list-usage`. Each command
 has a 60-second timeout. Successful output reports the selected region and SKU,
@@ -115,9 +125,9 @@ python3 tests/test-azure-preflight.py -v
 
 The tests simulate Azure CLI responses through its subprocess boundary and check
 that every requested operation is a subscription-scoped read. They cover
-registration, restricted sizes, both quota tiers and the exact quota boundary,
-missing or malformed data, sign-in errors, and timeouts. A live subscription check
-remains to be performed.
+registration, restricted sizes, x64/Gen2 compatibility, Trusted Launch capability
+flags, both quota tiers and the exact quota boundary, missing or malformed data,
+sign-in errors, and timeouts. A live subscription check remains to be performed.
 
 Use your own SSH public key. The key under `tests/fixtures/` is test data.
 The default size is `Standard_B2ls_v2`. The Canonical image uses the latest Ubuntu
